@@ -42,6 +42,21 @@
     </style>
 </head>
 <body class="text-gray-200">
+<script>
+// === CARGA TEMPRANA DESDE ENLACE (#data=...) PARA MÓVIL/WEBVIEWS ===
+(function() {
+  try {
+    var m = location.hash.match(/data=([^&]+)/);
+    if (m) {
+      var json = decodeURIComponent(escape(atob(m[1])));
+      localStorage.setItem('proSalesDashboard', json);
+      // Opcional: limpiar el hash para evitar recargas infinitas desde apps
+      // history.replaceState(null, document.title, location.pathname + location.search);
+    }
+  } catch(e) { console.log('Early load error', e); }
+})();
+</script>
+
 
     <div id="app-container" class="container mx-auto p-4 md:p-6 lg:p-8">
         
@@ -50,16 +65,27 @@
                 <h1 class="text-3xl md:text-4xl font-black gradient-text">Dashboard de Ventas</h1>
                 <p class="text-lg text-gray-400 mt-1">¡Bienvenida de nuevo, TE EQUIPAMOS!</p>
             </div>
-            
-<div class="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
-  <button id="add-sale-btn" class="w-full md:w-auto mt-4 md:mt-0 text-white font-bold py-3 px-6 rounded-lg btn-primary shadow-lg flex items-center justify-center gap-2">
+            <button id="add-sale-btn" class="w-full md:w-auto mt-4 md:mt-0 text-white font-bold py-3 px-6 rounded-lg btn-primary shadow-lg flex items-center justify-center gap-2">
                 <i class="fas fa-plus"></i> Registrar Venta
             </button>
-  <button id="export-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">Exportar</button>
+  <button id="export-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">
+    Exportar
+  </button>
   <input id="import-file" type="file" accept="application/json" class="hidden">
-  <button id="import-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">Importar</button>
-  <button id="share-link-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">Compartir enlace</button>
-</div>
+  <button id="import-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">
+    Importar
+  </button>
+<button id="diag-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">
+  Diagnóstico
+</button>
+
+  <button id="share-link-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">
+    Compartir enlace
+  </button>
+<button id="paste-json-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">
+  Pegar JSON
+</button>
+
 
         </header>
 
@@ -487,87 +513,7 @@
                     responsive: true, 
                     maintainAspectRatio: false, 
                     plugins: { 
-                
-// ====== EXPORTAR / IMPORTAR / COMPARTIR ======
-const STORAGE_KEY = 'proSalesDashboard';
-
-function exportarDatos() {
-  try {
-    const datos = localStorage.getItem(STORAGE_KEY) || JSON.stringify({ sales: [], statusOptions: state?.statusOptions || [] });
-    const blob = new Blob([datos], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `ventas_data_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    showToast && showToast('✅ Datos exportados');
-  } catch (e) {
-    console.error(e);
-    showToast && showToast('Error exportando datos', true);
-  }
-}
-
-async function importarDatos(file) {
-  try {
-    const text = await file.text();
-    const obj = JSON.parse(text);
-    state = { ...state, ...obj, statusOptions: state?.statusOptions || obj.statusOptions || [] };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    if (typeof renderAll === 'function') renderAll();
-    showToast && showToast('✅ Datos importados');
-  } catch (e) {
-    console.error(e);
-    showToast && showToast('Archivo inválido', true);
-  }
-}
-
-function crearLinkCompartir() {
-  try {
-    const datos = localStorage.getItem(STORAGE_KEY) || JSON.stringify({ sales: [], statusOptions: state?.statusOptions || [] });
-    const payload = btoa(unescape(encodeURIComponent(datos)));
-    const url = `${location.origin}${location.pathname}#data=${payload}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url);
-      showToast && showToast('🔗 Enlace copiado al portapapeles');
-    } else {
-      prompt('Copia este enlace:', url);
-    }
-  } catch (e) {
-    console.error(e);
-    showToast && showToast('No se pudo crear el enlace', true);
-  }
-}
-
-function leerLinkCompartido() {
-  const m = location.hash.match(/data=([^&]+)/);
-  if (!m) return;
-  try {
-    const json = decodeURIComponent(escape(atob(m[1])));
-    const obj = JSON.parse(json);
-    state = { ...state, ...obj, statusOptions: state?.statusOptions || obj.statusOptions || [] };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    if (typeof renderAll === 'function') renderAll();
-    showToast && showToast('✅ Datos cargados desde el enlace');
-  } catch (e) {
-    console.error(e);
-    showToast && showToast('Enlace de datos inválido', true);
-  }
-}
-
-// Conectar botones (después de que el DOM esté listo)
-(function conectarBotones() {
-  function byId(id){ return document.getElementById(id); }
-  const exp = byId('export-btn');
-  const imp = byId('import-btn');
-  const file = byId('import-file');
-  const share = byId('share-link-btn');
-  if (exp) exp.addEventListener('click', exportarDatos);
-  if (imp) imp.addEventListener('click', () => file && file.click());
-  if (file) file.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) importarDatos(e.target.files[0]);
-  });
-  if (share) share.addEventListener('click', crearLinkCompartir);
-})();
-        legend: { display: false }, 
+                        legend: { display: false }, 
                         tooltip: { backgroundColor: '#1e293b', padding: 12, displayColors: false } 
                     }, 
                     scales: { 
@@ -578,15 +524,172 @@ function leerLinkCompartido() {
             });
 
             loadState();
-            leerLinkCompartido();
             renderAll();
         }
 
         initializeApp();
     });
     </script>
+
+<script>
+// === Parche de sincronización sin servidor: Exportar/Importar/Compartir ===
+(function() {
+  const STORAGE_KEY = 'proSalesDashboard';
+
+  function showToastSafe(msg, isError) {
+    try { typeof showToast === 'function' ? showToast(msg, isError) : console.log(msg); }
+    catch(e){ console.log(msg); }
+  }
+
+  window.exportarDatos = function exportarDatos() {
+    try {
+      const datos = localStorage.getItem(STORAGE_KEY) || JSON.stringify({ sales: [], statusOptions: (window.state && window.state.statusOptions) || [] });
+      const blob = new Blob([datos], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'ventas_data_' + new Date().toISOString().slice(0,10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToastSafe('✅ Datos exportados');
+    } catch (e) {
+      console.error(e);
+      showToastSafe('Error exportando datos', true);
+    }
+  };
+
+  window.importarDatos = async function importarDatos(file) {
+    try {
+      const text = await file.text();
+      const obj = JSON.parse(text);
+      window.state = Object.assign({}, window.state || {}, obj, {
+        statusOptions: (window.state && window.state.statusOptions) || obj.statusOptions || []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(window.state));
+      if (typeof renderAll === 'function') renderAll();
+      showToastSafe('✅ Datos importados');
+    } catch (e) {
+      console.error(e);
+      showToastSafe('Archivo inválido', true);
+    }
+  };
+
+  window.crearLinkCompartir = function crearLinkCompartir() {
+    try {
+      const datos = localStorage.getItem(STORAGE_KEY) || JSON.stringify({ sales: [], statusOptions: (window.state && window.state.statusOptions) || [] });
+      const payload = btoa(unescape(encodeURIComponent(datos)));
+      const url = location.origin + location.pathname + '#data=' + payload;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => showToastSafe('🔗 Enlace copiado al portapapeles'));
+      } else {
+        // Fallback: mostrar en prompt
+        prompt('Copia este enlace:', url);
+      }
+    } catch (e) {
+      console.error(e);
+      showToastSafe('No se pudo crear el enlace', true);
+    }
+  };
+
+  window.leerLinkCompartido = function leerLinkCompartido() {
+    const m = location.hash.match(/data=([^&]+)/);
+    if (!m) return;
+    try {
+      const json = decodeURIComponent(escape(atob(m[1])));
+      const obj = JSON.parse(json);
+      window.state = Object.assign({}, window.state || {}, obj, {
+        statusOptions: (window.state && window.state.statusOptions) || obj.statusOptions || []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(window.state));
+      if (typeof renderAll === 'function') renderAll();
+      showToastSafe('✅ Datos cargados desde el enlace');
+    } catch (e) {
+      console.error(e);
+      showToastSafe('Enlace de datos inválido', true);
+    }
+  };
+
+  // Conectar eventos cuando el DOM esté listo
+  document.addEventListener('DOMContentLoaded', function() {
+    // listeners de botones
+    var exportBtn = document.getElementById('export-btn');
+    var importBtn = document.getElementById('import-btn');
+    var shareBtn  = document.getElementById('share-link-btn');
+    var importInput = document.getElementById('import-file');
+
+    if (exportBtn) exportBtn.addEventListener('click', window.exportarDatos);
+    if (importBtn && importInput) {
+      importBtn.addEventListener('click', function(){ importInput.click(); });
+      importInput.addEventListener('change', function(e){
+        if (e.target.files && e.target.files[0]) window.importarDatos(e.target.files[0]);
+      });
+    }
+    if (shareBtn) shareBtn.addEventListener('click', window.crearLinkCompartir);
+
+    // Cargar desde enlace si existe
+    window.leerLinkCompartido && window.leerLinkCompartido();
+  });
+})();
+</script>
 </body>
 </html>
 
-         
-            
+
+<script>
+(function(){
+  function showToastSafe(msg, isError){ try{ typeof showToast==='function'?showToast(msg,isError):console.log(msg);}catch(_){console.log(msg);} }
+  document.addEventListener('DOMContentLoaded', function(){
+    var pasteBtn = document.getElementById('paste-json-btn');
+    if (!pasteBtn) return;
+    pasteBtn.addEventListener('click', function(){
+      var txt = prompt('Pega aquí el JSON exportado:');
+      if(!txt) return;
+      try{
+        var obj = JSON.parse(txt);
+        var cur = localStorage.getItem('proSalesDashboard');
+        var merged = Object.assign({}, cur?JSON.parse(cur):{}, obj);
+        localStorage.setItem('proSalesDashboard', JSON.stringify(merged));
+        if (typeof renderAll==='function') renderAll();
+        showToastSafe('✅ Datos importados desde texto');
+      }catch(e){
+        console.error(e);
+        showToastSafe('JSON inválido', true);
+      }
+    });
+  });
+})();
+</script>
+
+<script>
+(function(){
+  document.addEventListener('DOMContentLoaded', function(){
+    var b = document.getElementById('diag-btn');
+    if(!b) return;
+    b.addEventListener('click', function(){
+      var okLS = false, msg = [];
+      try{
+        var testKey='__t'+Date.now();
+        localStorage.setItem(testKey,'1'); 
+        okLS = localStorage.getItem(testKey)==='1';
+        localStorage.removeItem(testKey);
+      }catch(e){ msg.push('localStorage bloqueado: '+e); }
+      var lsSize = 0;
+      try{
+        var all = Object.values(localStorage);
+        lsSize = all.join('').length;
+      }catch(e){}
+      var ua = navigator.userAgent;
+      var isWebView = /FBAN|FBAV|Instagram|Line|Twitter|CriOS\s+.*(GSA|Gmail)|wv\)/i.test(ua) || (window.navigator.standalone===false);
+      var info = {
+        userAgent: ua,
+        localStorageOK: okLS,
+        localStorageBytes: lsSize,
+        hash: location.hash ? (location.hash.length>60? location.hash.slice(0,60)+'…': location.hash) : '',
+        pathname: location.pathname,
+        webviewDetected: !!isWebView
+      };
+      alert('Diagnóstico:\n'+JSON.stringify(info, null, 2));
+    });
+  });
+})();
+</script>
