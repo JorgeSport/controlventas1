@@ -50,9 +50,17 @@
                 <h1 class="text-3xl md:text-4xl font-black gradient-text">Dashboard de Ventas</h1>
                 <p class="text-lg text-gray-400 mt-1">¡Bienvenida de nuevo, TE EQUIPAMOS!</p>
             </div>
-            <button id="add-sale-btn" class="w-full md:w-auto mt-4 md:mt-0 text-white font-bold py-3 px-6 rounded-lg btn-primary shadow-lg flex items-center justify-center gap-2">
+            
+<div class="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
+  <button id="add-sale-btn" class="w-full md:w-auto mt-4 md:mt-0 text-white font-bold py-3 px-6 rounded-lg btn-primary shadow-lg flex items-center justify-center gap-2">
                 <i class="fas fa-plus"></i> Registrar Venta
             </button>
+  <button id="export-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">Exportar</button>
+  <input id="import-file" type="file" accept="application/json" class="hidden">
+  <button id="import-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">Importar</button>
+  <button id="share-link-btn" class="text-white font-bold py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 shadow-lg">Compartir enlace</button>
+</div>
+
         </header>
 
         <!-- KPIs -->
@@ -479,7 +487,87 @@
                     responsive: true, 
                     maintainAspectRatio: false, 
                     plugins: { 
-                        legend: { display: false }, 
+                
+// ====== EXPORTAR / IMPORTAR / COMPARTIR ======
+const STORAGE_KEY = 'proSalesDashboard';
+
+function exportarDatos() {
+  try {
+    const datos = localStorage.getItem(STORAGE_KEY) || JSON.stringify({ sales: [], statusOptions: state?.statusOptions || [] });
+    const blob = new Blob([datos], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ventas_data_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    showToast && showToast('✅ Datos exportados');
+  } catch (e) {
+    console.error(e);
+    showToast && showToast('Error exportando datos', true);
+  }
+}
+
+async function importarDatos(file) {
+  try {
+    const text = await file.text();
+    const obj = JSON.parse(text);
+    state = { ...state, ...obj, statusOptions: state?.statusOptions || obj.statusOptions || [] };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (typeof renderAll === 'function') renderAll();
+    showToast && showToast('✅ Datos importados');
+  } catch (e) {
+    console.error(e);
+    showToast && showToast('Archivo inválido', true);
+  }
+}
+
+function crearLinkCompartir() {
+  try {
+    const datos = localStorage.getItem(STORAGE_KEY) || JSON.stringify({ sales: [], statusOptions: state?.statusOptions || [] });
+    const payload = btoa(unescape(encodeURIComponent(datos)));
+    const url = `${location.origin}${location.pathname}#data=${payload}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url);
+      showToast && showToast('🔗 Enlace copiado al portapapeles');
+    } else {
+      prompt('Copia este enlace:', url);
+    }
+  } catch (e) {
+    console.error(e);
+    showToast && showToast('No se pudo crear el enlace', true);
+  }
+}
+
+function leerLinkCompartido() {
+  const m = location.hash.match(/data=([^&]+)/);
+  if (!m) return;
+  try {
+    const json = decodeURIComponent(escape(atob(m[1])));
+    const obj = JSON.parse(json);
+    state = { ...state, ...obj, statusOptions: state?.statusOptions || obj.statusOptions || [] };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (typeof renderAll === 'function') renderAll();
+    showToast && showToast('✅ Datos cargados desde el enlace');
+  } catch (e) {
+    console.error(e);
+    showToast && showToast('Enlace de datos inválido', true);
+  }
+}
+
+// Conectar botones (después de que el DOM esté listo)
+(function conectarBotones() {
+  function byId(id){ return document.getElementById(id); }
+  const exp = byId('export-btn');
+  const imp = byId('import-btn');
+  const file = byId('import-file');
+  const share = byId('share-link-btn');
+  if (exp) exp.addEventListener('click', exportarDatos);
+  if (imp) imp.addEventListener('click', () => file && file.click());
+  if (file) file.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) importarDatos(e.target.files[0]);
+  });
+  if (share) share.addEventListener('click', crearLinkCompartir);
+})();
+        legend: { display: false }, 
                         tooltip: { backgroundColor: '#1e293b', padding: 12, displayColors: false } 
                     }, 
                     scales: { 
@@ -490,6 +578,7 @@
             });
 
             loadState();
+            leerLinkCompartido();
             renderAll();
         }
 
@@ -499,3 +588,5 @@
 </body>
 </html>
 
+         
+            
